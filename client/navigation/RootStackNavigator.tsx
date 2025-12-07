@@ -1,12 +1,13 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import CarDetailModal from "@/screens/CarDetailModal";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { Car } from "@/data/cars";
 
 export type RootStackParamList = {
   Main: undefined;
-  Modal: undefined;
+  CarDetail: { car: Car; fromFavorites?: boolean };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -22,11 +23,11 @@ export default function RootStackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="CarDetail"
+        component={CarDetailModal}
         options={{
           presentation: "modal",
-          headerTitle: "Modal",
+          headerTitle: "Car Details",
         }}
       />
     </Stack.Navigator>
