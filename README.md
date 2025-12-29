@@ -1,4 +1,3 @@
-# Auto-Matcher
 # CarSwipe - Car Matching Application
 
 A modern, swipe-based car browsing application built with React Native and Expo. Inspired by dating apps like Tinder, CarSwipe allows users to discover and match with their dream cars through an intuitive swipe interface.
@@ -338,3 +337,4 @@ For questions or suggestions, please open an issue in the repository.
 **Version**: 1.0.0  
 **Last Updated**: 2024  
 **Status**: Active Development
+
