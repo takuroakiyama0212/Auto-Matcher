@@ -1,8 +1,10 @@
 {
-  "buildCommand": "npm install && npm run build:web",
+  "version": 2,
+  "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
-  "installCommand": "npm install",
+  "installCommand": "npm ci",
   "framework": null,
+  "rootDirectory": ".",
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
