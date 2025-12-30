@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const githubLink = document.querySelector('a[href*="github.com"]');
     if (githubLink && githubLink.href.includes('yourusername')) {
         // You can update this programmatically or leave it for manual update
-        console.log('Update GitHub repository URL in demo.html');
+        console.log('Update GitHub repository URL in index.html');
     }
 
     // Add active state to navigation links
@@ -77,8 +77,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // If on GitHub Pages (github.io domain)
         if (url.hostname.includes('github.io')) {
-            // Remove /demo.html and return base URL
-            const basePath = url.pathname.replace(/\/demo\.html$/, '');
+            // Remove /index.html and return base URL
+            const basePath = url.pathname.replace(/\/index\.html$/, '');
             return `${url.protocol}//${url.hostname}${basePath}/`;
         }
         
