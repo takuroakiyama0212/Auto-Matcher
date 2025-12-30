@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const githubLink = document.querySelector('a[href*="github.com"]');
     if (githubLink && githubLink.href.includes('yourusername')) {
         // You can update this programmatically or leave it for manual update
-        console.log('Update GitHub repository URL in index.html');
+        console.log('Update GitHub repository URL in demo.html');
     }
 
     // Add active state to navigation links
@@ -71,14 +71,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Get default web app URL
     function getDefaultWebAppUrl() {
-        // Try to detect GitHub Pages URL
         const currentUrl = window.location.href;
         const url = new URL(currentUrl);
         
+        // If on Vercel (vercel.app domain)
+        if (url.hostname.includes('vercel.app')) {
+            // Demo is at root, app is at /app
+            return url.origin + '/app';
+        }
+        
         // If on GitHub Pages (github.io domain)
         if (url.hostname.includes('github.io')) {
-            // Remove /index.html and return base URL
-            const basePath = url.pathname.replace(/\/index\.html$/, '');
+            // Remove /demo.html and return base URL
+            const basePath = url.pathname.replace(/\/demo\.html$/, '');
             return `${url.protocol}//${url.hostname}${basePath}/`;
         }
         
@@ -90,8 +95,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return 'http://localhost:8081';
         }
         
-        // Default: GitHub Pages format (user can edit)
-        return 'https://yourusername.github.io/auto-matcher-2/';
+        // Default: Vercel format (user can edit)
+        return url.origin + '/app';
     }
     
     // Function to get local network IP (for mobile QR code access)
