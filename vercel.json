@@ -5,8 +5,28 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/demo.html",
+      "destination": "/demo.html"
+    },
+    {
+      "source": "/demo.css",
+      "destination": "/demo.css"
+    },
+    {
+      "source": "/demo.js",
+      "destination": "/demo.js"
+    },
+    {
+      "source": "/app",
       "destination": "/index.html"
+    },
+    {
+      "source": "/app/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/demo.html"
     }
   ],
   "headers": [
