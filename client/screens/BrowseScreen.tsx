@@ -26,6 +26,8 @@ import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { CARS, Car } from "@/data/cars";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
+import { Alert } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
@@ -37,7 +39,8 @@ export default function BrowseScreen() {
   const navigation = useNavigation<NavigationProp>();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const { addFavorite } = useFavorites();
+  const { addFavorite, isAuthenticated } = useFavorites();
+  const { isAuthenticated: isGoogleAuthenticated } = useGoogleAuth();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [cards, setCards] = useState<Car[]>([...CARS]);
@@ -50,16 +53,34 @@ export default function BrowseScreen() {
     setCurrentIndex(0);
   }, []);
 
-  const removeCard = useCallback((liked: boolean) => {
+  const removeCard = useCallback(async (liked: boolean) => {
     const currentCar = cards[0];
     if (liked && currentCar) {
-      addFavorite(currentCar);
+      if (!isAuthenticated || !isGoogleAuthenticated) {
+        Alert.alert(
+          "Sign In Required",
+          "Please sign in to add cars to your favorites.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Sign In",
+              onPress: () => navigation.navigate("Profile"),
+            },
+          ]
+        );
+      } else {
+        try {
+          await addFavorite(currentCar);
+        } catch (error: any) {
+          Alert.alert("Error", error.message || "Failed to add favorite");
+        }
+      }
     }
     setCards((prev) => prev.slice(1));
     setCurrentIndex((prev) => prev + 1);
     translateX.value = 0;
     translateY.value = 0;
-  }, [cards, addFavorite, translateX, translateY]);
+  }, [cards, addFavorite, translateX, translateY, isAuthenticated, isGoogleAuthenticated, navigation]);
 
   const handleSwipeComplete = useCallback((direction: "left" | "right") => {
     if (Platform.OS !== "web") {
@@ -127,10 +148,24 @@ export default function BrowseScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    if (!isAuthenticated || !isGoogleAuthenticated) {
+      Alert.alert(
+        "Sign In Required",
+        "Please sign in to add cars to your favorites.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Sign In",
+            onPress: () => navigation.navigate("Profile"),
+          },
+        ]
+      );
+      return;
+    }
     translateX.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 300 }, () => {
       runOnJS(removeCard)(true);
     });
-  }, [translateX, removeCard]);
+  }, [translateX, removeCard, isAuthenticated, isGoogleAuthenticated, navigation]);
 
   const handleDislike = useCallback(() => {
     if (Platform.OS !== "web") {
@@ -231,6 +266,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
   cardWrapper: {
     position: "absolute",

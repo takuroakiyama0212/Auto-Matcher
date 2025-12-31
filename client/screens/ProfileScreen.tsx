@@ -14,11 +14,60 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { CARS } from "@/data/cars";
 
 const CAR_TYPES = ["Sedan", "SUV", "Sports", "Electric", "Classic"];
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+function GoogleSignInButton({ onPress, isLoading }: { onPress: () => void; isLoading: boolean }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={() => { scale.value = withSpring(0.95); }}
+      onPressOut={() => { scale.value = withSpring(1); }}
+      disabled={isLoading}
+      style={[
+        styles.googleButton,
+        { backgroundColor: "#4285F4" },
+        isLoading && { opacity: 0.6 },
+        animatedStyle,
+      ]}
+    >
+      <Feather name="log-in" size={18} color="#FFFFFF" />
+      <ThemedText style={styles.googleButtonText}>
+        {isLoading ? "Signing in..." : "Sign in with Google"}
+      </ThemedText>
+    </AnimatedPressable>
+  );
+}
+
+function GoogleSignOutButton({ onPress, color }: { onPress: () => void; color: string }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={() => { scale.value = withSpring(0.95); }}
+      onPressOut={() => { scale.value = withSpring(1); }}
+      style={[styles.googleButton, { backgroundColor: color }, animatedStyle]}
+    >
+      <Feather name="log-out" size={18} color="#FFFFFF" />
+      <ThemedText style={styles.googleButtonText}>Sign Out</ThemedText>
+    </AnimatedPressable>
+  );
+}
 
 function AvatarOption({
   icon,
@@ -127,6 +176,7 @@ export default function ProfileScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { favorites, clearFavorites } = useFavorites();
+  const { user, isAuthenticated, isLoading, signIn, signOut } = useGoogleAuth();
 
   const [selectedAvatar, setSelectedAvatar] = useState(0);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["Sports", "Electric"]);
@@ -170,11 +220,23 @@ export default function ProfileScreen() {
             ))}
           </View>
           <ThemedText type="h3" style={styles.userName}>
-            Car Enthusiast
+            {isAuthenticated && user ? user.name : "Car Enthusiast"}
           </ThemedText>
           <ThemedText style={[styles.userTagline, { color: theme.textSecondary }]}>
-            Looking for my next ride
+            {isAuthenticated && user ? user.email : "Looking for my next ride"}
           </ThemedText>
+          
+          {!isAuthenticated ? (
+            <GoogleSignInButton
+              onPress={signIn}
+              isLoading={isLoading}
+            />
+          ) : (
+            <GoogleSignOutButton
+              onPress={signOut}
+              color={theme.dislike}
+            />
+          )}
         </View>
 
         <View style={styles.statsRow}>
@@ -348,5 +410,20 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     fontWeight: "600",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.lg,
+  },
+  googleButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 16,
   },
 });

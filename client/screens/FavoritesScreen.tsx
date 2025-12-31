@@ -47,7 +47,7 @@ function FavoriteCard({ car, onPress }: { car: Car; onPress: () => void }) {
       ]}
     >
       <Image
-        source={{ uri: car.imageUrl }}
+        source={car.imageUrls[0]}
         style={styles.cardImage}
         contentFit="cover"
       />

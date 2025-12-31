@@ -8,8 +8,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { Car, formatPrice, formatMileage } from "@/data/cars";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_HEIGHT = SCREEN_WIDTH * 1.3;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+// Calculate optimal card height to fit screen at 100% zoom
+// Account for header, action buttons, and bottom navigation
+const CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.75, SCREEN_WIDTH * 1.1);
 
 interface SwipeCardProps {
   car: Car;
@@ -25,9 +27,10 @@ export default function SwipeCard({ car, onPress }: SwipeCardProps) {
       style={[styles.card, { backgroundColor: theme.backgroundDefault }, Shadows.card]}
     >
       <Image
-        source={{ uri: car.imageUrl }}
+        source={car.imageUrls[0]}
         style={styles.image}
         contentFit="cover"
+        contentPosition="center"
       />
       <View style={styles.content}>
         <View style={styles.header}>
@@ -88,15 +91,16 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: "60%",
+    height: "65%",
   },
   content: {
     flex: 1,
     padding: Spacing.lg,
     justifyContent: "space-between",
+    minHeight: 0, // Allow content to shrink if needed
   },
   header: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   titleRow: {
     flexDirection: "row",
@@ -106,6 +110,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
+    fontSize: 20,
   },
   yearBadge: {
     paddingHorizontal: Spacing.md,
@@ -115,16 +120,18 @@ const styles = StyleSheet.create({
   },
   yearText: {
     fontWeight: "600",
-    fontSize: 14,
+    fontSize: 13,
   },
   price: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
+    marginTop: Spacing.xs,
   },
   specs: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.lg,
+    gap: Spacing.md,
+    marginTop: Spacing.xs,
   },
   specItem: {
     flexDirection: "row",
@@ -138,6 +145,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginTop: Spacing.xs,
   },
   conditionBadge: {
     paddingHorizontal: Spacing.md,

@@ -1,5 +1,5 @@
-import React from "react";
-import { View, StyleSheet, ScrollView, Pressable, Dimensions } from "react-native";
+import React, { useCallback, useRef, useState } from "react";
+import { View, StyleSheet, ScrollView, Pressable, Dimensions, FlatList, NativeSyntheticEvent, NativeScrollEvent, Share, Platform, Alert } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -18,6 +18,7 @@ import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { Car, formatPrice, formatMileage } from "@/data/cars";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -75,14 +76,54 @@ export default function CarDetailModal() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { favorites, addFavorite, removeFavorite } = useFavorites();
+  const { favorites, addFavorite, removeFavorite, isAuthenticated } = useFavorites();
+  const { isAuthenticated: isGoogleAuthenticated } = useGoogleAuth();
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const viewShotRef = useRef<any>(null);
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number }> }) => {
+    const nextIndex = viewableItems?.[0]?.index;
+    if (typeof nextIndex === "number") {
+      setActiveImageIndex(nextIndex);
+    }
+  });
+  const updateIndexFromOffset = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const width = event.nativeEvent.layoutMeasurement.width || SCREEN_WIDTH - Spacing.lg * 2;
+    if (width === 0) return;
+    const nextIndex = Math.round(offsetX / width);
+    setActiveImageIndex(nextIndex);
+  }, []);
+  const handleMomentumEnd = useCallback(updateIndexFromOffset, [updateIndexFromOffset]);
+  const handleScroll = useCallback(updateIndexFromOffset, [updateIndexFromOffset]);
 
   const { car, fromFavorites } = route.params;
   const isLiked = favorites.some((f) => f.id === car.id);
 
-  const handleLike = () => {
-    addFavorite(car);
+  const handleLike = async () => {
+    if (!isAuthenticated || !isGoogleAuthenticated) {
+      Alert.alert(
+        "Sign In Required",
+        "Please sign in to add cars to your favorites.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Sign In",
+            onPress: () => {
+              navigation.goBack();
+              // Profile画面に遷移する処理は親コンポーネントで行う
+            },
+          },
+        ]
+      );
+      return;
+    }
+    try {
+      await addFavorite(car);
     navigation.goBack();
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to add favorite");
+    }
   };
 
   const handleRemove = () => {
@@ -90,8 +131,193 @@ export default function CarDetailModal() {
     navigation.goBack();
   };
 
+  const handleShare = async () => {
+    try {
+      const carInfo = `${car.year} ${car.make} ${car.model}`;
+      const priceInfo = formatPrice(car.price);
+      const shareText = `${carInfo}\n${priceInfo}`;
+
+      if (Platform.OS === "web") {
+        // Web環境: 車の画像を取得してシェア
+        try {
+          // 画像要素から画像を取得
+          const imgElement = document.querySelector(`[data-car-image="${car.id}-${activeImageIndex}"]`) as HTMLImageElement | HTMLCanvasElement;
+          let imageBlob: Blob | null = null;
+
+          if (imgElement) {
+            // img要素またはcanvas要素から画像を取得
+            if (imgElement instanceof HTMLImageElement && imgElement.src) {
+              try {
+                // CORSエラーを避けるため、canvasに描画してからBlobに変換
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                if (ctx) {
+                  canvas.width = imgElement.naturalWidth || imgElement.width;
+                  canvas.height = imgElement.naturalHeight || imgElement.height;
+                  ctx.drawImage(imgElement, 0, 0);
+                  canvas.toBlob((blob) => {
+                    if (blob) {
+                      imageBlob = blob;
+                      shareWithImage(blob);
+                    } else {
+                      shareTextOnly();
+                    }
+                  }, "image/png");
+                  return;
+                }
+              } catch (error) {
+                console.error("Canvas error:", error);
+                // フォールバック: 直接fetch
+                try {
+                  const response = await fetch(imgElement.src);
+                  imageBlob = await response.blob();
+                } catch (fetchError) {
+                  console.error("Fetch error:", fetchError);
+                }
+              }
+            } else if (imgElement instanceof HTMLCanvasElement) {
+              imgElement.toBlob((blob) => {
+                if (blob) {
+                  shareWithImage(blob);
+                } else {
+                  shareTextOnly();
+                }
+              }, "image/png");
+              return;
+            }
+          }
+
+          // 画像要素が見つからない場合、画像URLから直接取得を試みる
+          if (!imageBlob) {
+            const currentImage = car.imageUrls[activeImageIndex];
+            let imageUrl: string | null = null;
+
+            if (typeof currentImage === "string") {
+              imageUrl = currentImage;
+            } else if (currentImage && typeof currentImage === "object") {
+              // require()で読み込んだ画像の場合、expo-imageが生成したURLを探す
+              const imgEl = document.querySelector(`img[src*="${car.id}"]`) as HTMLImageElement;
+              if (imgEl && imgEl.src) {
+                imageUrl = imgEl.src;
+              }
+            }
+
+            if (imageUrl) {
+              try {
+                const response = await fetch(imageUrl);
+                imageBlob = await response.blob();
+              } catch (error) {
+                console.error("Image fetch error:", error);
+              }
+            }
+          }
+
+          if (imageBlob) {
+            shareWithImage(imageBlob);
+            return;
+          }
+        } catch (error) {
+          console.error("Image share error:", error);
+        }
+
+        // テキストのみシェア
+        shareTextOnly();
+
+        function shareWithImage(blob: Blob) {
+          const file = new File([blob], `${car.make}-${car.model}.png`, { type: "image/png" });
+          const shareData = {
+            title: carInfo,
+            text: shareText,
+            files: [file],
+          };
+          
+          if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+            navigator.share(shareData).catch((error) => {
+              console.error("Share error:", error);
+              shareTextOnly();
+            });
+          } else {
+            // フォールバック: 画像をダウンロード
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${car.make}-${car.model}.png`;
+            a.click();
+            URL.revokeObjectURL(url);
+            shareTextOnly();
+          }
+        }
+
+        function shareTextOnly() {
+          const shareContent = {
+            title: carInfo,
+            text: shareText,
+          };
+          
+          if (navigator.share) {
+            navigator.share(shareContent).catch(() => {
+              navigator.clipboard.writeText(`${shareText}\n\nCheck out this amazing car!`).then(() => {
+                Alert.alert("Copied!", "Car information copied to clipboard");
+              });
+            });
+          } else {
+            navigator.clipboard.writeText(`${shareText}\n\nCheck out this amazing car!`).then(() => {
+              Alert.alert("Copied!", "Car information copied to clipboard");
+            });
+          }
+        }
+      } else {
+        // モバイル環境: 車の画像と情報をシェア
+        try {
+          const currentImage = car.imageUrls[activeImageIndex];
+          let imageUri: string | null = null;
+
+          // 画像URIを取得
+          if (typeof currentImage === "string") {
+            imageUri = currentImage;
+          } else if (currentImage && typeof currentImage === "object" && "uri" in currentImage) {
+            imageUri = (currentImage as any).uri;
+          }
+
+          const shareOptions: any = {
+            message: shareText,
+            title: carInfo,
+          };
+
+          if (imageUri) {
+            shareOptions.url = imageUri;
+          }
+
+          const result = await Share.share(shareOptions);
+          if (result.action === Share.sharedAction) {
+            console.log("Shared successfully");
+          }
+        } catch (error) {
+          console.error("Share error:", error);
+          // フォールバック: テキストのみシェア
+          const shareContent = {
+            message: shareText,
+            title: carInfo,
+          };
+          await Share.share(shareContent);
+        }
+      }
+    } catch (error: any) {
+      if (error.message !== "User did not share") {
+        Alert.alert("Error", "Failed to share car details");
+        console.error("Share error:", error);
+      }
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
+      <View 
+        {...(Platform.OS === "web" ? { "data-share-container": "true" } as any : {})}
+        ref={Platform.OS !== "web" ? viewShotRef : undefined}
+        collapsable={false}
+        style={styles.shareContainer}
+      >
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -102,11 +328,47 @@ export default function CarDetailModal() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.galleryContainer}>
+          <FlatList
+            data={car.imageUrls}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, index) => `${car.id}-image-${index}`}
+            renderItem={({ item, index }) => (
         <Image
-          source={{ uri: car.imageUrl }}
+                source={item}
           style={styles.heroImage}
           contentFit="cover"
-        />
+                {...(Platform.OS === "web" ? { "data-car-image": `${car.id}-${index}` } as any : {})}
+              />
+            )}
+            style={styles.heroList}
+            onViewableItemsChanged={onViewableItemsChanged.current}
+            viewabilityConfig={viewabilityConfig.current}
+            decelerationRate="fast"
+            onMomentumScrollEnd={handleMomentumEnd}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            snapToInterval={SCREEN_WIDTH - Spacing.lg * 2}
+            snapToAlignment="start"
+            disableIntervalMomentum
+            nestedScrollEnabled
+          />
+          <View style={styles.dots}>
+            {car.imageUrls.map((_, index) => (
+              <View
+                key={`${car.id}-dot-${index}`}
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: index === activeImageIndex ? theme.like : theme.backgroundSecondary,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
 
         <View style={styles.content}>
           <View style={styles.header}>
@@ -171,6 +433,7 @@ export default function CarDetailModal() {
           </View>
         </View>
       </ScrollView>
+      </View>
 
       <View style={[styles.bottomActions, { paddingBottom: insets.bottom + Spacing.lg, backgroundColor: theme.backgroundRoot }]}>
         {fromFavorites ? (
@@ -185,7 +448,7 @@ export default function CarDetailModal() {
               icon="share"
               label="Share"
               color={theme.superLike}
-              onPress={() => {}}
+              onPress={handleShare}
             />
           </>
         ) : (
@@ -216,14 +479,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  shareContainer: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
+  },
+  galleryContainer: {
+    marginBottom: Spacing.xl,
+  },
+  heroList: {
+    width: SCREEN_WIDTH - Spacing.lg * 2,
+    alignSelf: "center",
   },
   heroImage: {
     width: SCREEN_WIDTH - Spacing.lg * 2,
     height: SCREEN_WIDTH * 0.6,
     borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.xl,
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: BorderRadius.full,
   },
   content: {
     flex: 1,
